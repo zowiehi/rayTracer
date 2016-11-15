@@ -191,12 +191,14 @@ double* reflect(double* Ron, double* Rd, Object* best_obj, Object** objects, Obj
   double* N;
   double* R;
   if(best_obj->kind == 1)	N = sub(Ron, best_obj->sphere.position);
-  else if(best_obj->kind == 2)N = best_obj->plane.normal;
-
-  R = sub(scale(2 * dot(Rd,N), N), Rd);
-
+  else if(best_obj->kind == 2) N = best_obj->plane.normal;
+  normalize(N);
+  R = add(scale(2 * -dot(Rd,N), N), Rd);
+  normalize(R);
   if(best_obj->kind == 1) return scale(best_obj->sphere.reflect, trace(Ron, R, objects, lights, depth));
-  if(best_obj->kind == 2) return scale(best_obj->plane.reflect, trace(Ron, R, objects, lights, depth));
+  if(best_obj->kind == 2) {
+    return scale(best_obj->plane.reflect, trace(Ron, R, objects, lights, depth));
+  }
 }
 
 
@@ -255,12 +257,6 @@ double* trace(double* Ro, double* Rd, Object** objects, Object** lights, int dep
 
   //the point on the object where we got a collision
   double* Ron = add(scale(best_t, Rd), Ro);
-
-  if(depth <= MAX_DEPTH){
-    printf("depth %d\n", depth);
-    depth += 1;
-    double* curcolor = reflect(Ron, Rd, best_obj, objects, lights, depth);
-  }
 
 
   //loop through each of the lght objects
@@ -331,6 +327,18 @@ double* trace(double* Ro, double* Rd, Object** objects, Object** lights, int dep
 
       }
     }
+    if(depth < MAX_DEPTH){
+      printf("depth %d\n", depth);
+      depth += 1;
+      double* reflectColor = reflect(Ron, Rd, best_obj, objects, lights, depth);
+
+      curcolor[0] += reflectColor[0];
+      curcolor[1] += reflectColor[1];
+      curcolor[2] += reflectColor[2];
+    }
+    curcolor[0] = clamp(curcolor[0]);
+    curcolor[1] = clamp(curcolor[1]);
+    curcolor[2] = clamp(curcolor[2]);
     return curcolor;
 }
  //represents a single pixel object
