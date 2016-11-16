@@ -1,7 +1,11 @@
 #Raycaster with Lighting
 
 
-This program incorporates the simple lighting model into a basic ray caster. The ray caster reads in a json scene file and outputs a .ppm image of the objects in the scene. It includes support for point and spotlights, and uses specular and diffuse color components for shading of primative objects
+This program builds upon the previous ray casting projects to incorporate ray tracing to
+allow for the modeling of refraction and reflection. By modifying the behavior of he ray caster
+to allow for recursive calls to the trace method, we can represent reflection and refraction by
+tracing additional rays that continue past the first collision with modifications to their direction
+depending upon the amount and type of reflection or refraction modeled by each object
 
 
 ##Usage
@@ -10,7 +14,7 @@ This program incorporates the simple lighting model into a basic ray caster. The
 To build the program, simply type ‘make’ and the project will build
 
 
-Use the format ./raycast width height object-file.json output-file.ppm
+Use the format ./raytrace width height object-file.json output-file.ppm
 
 
 width and height cannot be zero
