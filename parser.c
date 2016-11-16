@@ -224,7 +224,7 @@ Object** read_scene(char* filename) {
 
       //Key check values
       int col = 0, p = 0, r = 0, n = 0, w = 0, h = 0, d = 0, s = 0,
-          dir = 0, rad = 0, ang = 0,theta = 0;
+          dir = 0, rad = 0, ang = 0,theta = 0, ior = 0;
 
       //loop goes through each attribute of the object until the closing bracket is read
       while (1) {
@@ -247,12 +247,14 @@ Object** read_scene(char* filename) {
                 fprintf(stderr, "Error: please provide a valid sphere object\n" );
                 exit(1);
               }
+              if(ior == 0) objects[i]->sphere.ior = 1;
               break;
             case 2:
               if(p == 0 || d == 0 || n == 0){
                 fprintf(stderr, "Error: please provide a valid plane object\n" );
                 exit(1);
               }
+              if(ior == 0) objects[i]->plane.ior = 1;
               break;
             case 3:
               if(p == 0 || col == 0){
@@ -441,7 +443,7 @@ Object** read_scene(char* filename) {
                 fprintf(stderr, "Error, type/key missmatch, line number %d \n", line);
                 exit(1);
               }
-              s = 1;
+
 
               double val = next_number(json);
               //bound all numbers between 0 and 1
@@ -462,7 +464,7 @@ Object** read_scene(char* filename) {
                 fprintf(stderr, "Error, type/key missmatch, line number %d \n", line);
                 exit(1);
               }
-              s = 1;
+
 
               double val = next_number(json);
               //bound all numbers between 0 and 1
@@ -483,7 +485,7 @@ Object** read_scene(char* filename) {
                 fprintf(stderr, "Error, type/key missmatch, line number %d \n", line);
                 exit(1);
               }
-              s = 1;
+              ior = 1;
 
               double val = next_number(json);
 

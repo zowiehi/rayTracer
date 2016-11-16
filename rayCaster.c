@@ -192,31 +192,25 @@ static inline double* scale(double t, double* v){
 
 }
 
-double* reflect(double* Ron, double* Rd, Object* best_obj, Object** objects, Object** lights, int depth){
-  double* N;
+//Method to return the reflectance color of an object, calls trace recursively
+double* reflect(double* Ron, double* Rd, double* N, Object* best_obj, Object** objects, Object** lights, int depth){
+
   double* R;
-  if(best_obj->kind == 1)	N = sub(Ron, best_obj->sphere.position);
-  else if(best_obj->kind == 2) N = best_obj->plane.normal;
-  normalize(N);
+  //get the reflected vector
   R = add(scale(-2 * dot(Rd,N), N), Rd);
   normalize(R);
+  //call trace with our new reflected vector
   if(best_obj->kind == 1) return scale(best_obj->sphere.reflect, trace(Ron, R, objects, lights, depth));
-  if(best_obj->kind == 2) {
-    return scale(best_obj->plane.reflect, trace(Ron, R, objects, lights, depth));
-  }
+  if(best_obj->kind == 2) return scale(best_obj->plane.reflect, trace(Ron, R, objects, lights, depth));
 }
 
-double* refract(double* Ron, double* Rd, Object* best_obj, int inside, Object** objects, Object** lights, int depth){
-  double* N;
+//Handle the refractance color of our object
+double* refract(double* Ron, double* Rd, double* N, Object* best_obj, int inside, Object** objects, Object** lights, int depth){
+
   double R;
   double n;
 
-  printf("Refract\n");
-  if(best_obj->kind == 1)	N = sub(Ron, best_obj->sphere.position);
-  else if(best_obj->kind == 2) N = best_obj->plane.normal;
-
-  normalize(N);
-
+  //check if we are inside the sphere. if so, invert the ior
   if(inside)
   {
     if(best_obj->kind == 1)	n = 1/best_obj->sphere.ior;
@@ -226,12 +220,14 @@ double* refract(double* Ron, double* Rd, Object* best_obj, int inside, Object** 
     if(best_obj->kind == 1)	n = best_obj->sphere.ior;
     else if(best_obj->kind == 2) n = best_obj->plane.ior;
   }
+
+  //cos theta
   R = -dot(Rd,N);
-
+  //calculate the  refraction ray
   double c = sqrt( 1 - pow(n,2) * (1 - pow(R,2)));
-
   double* ref = add(scale(n, Rd), scale((n * R - c), N));
   normalize(ref);
+  //recursively call the trace method
   if(best_obj->kind == 1) return trace(Ron, ref, objects, lights, depth);
   if(best_obj->kind == 2) {
     return trace(Ron, ref, objects, lights, depth);
@@ -240,11 +236,13 @@ double* refract(double* Ron, double* Rd, Object* best_obj, int inside, Object** 
 
 
 
-
+//trace method, recursive algorithim to trace rays and call reflect and refract as necessary
 double* trace(double* Ro, double* Rd, Object** objects, Object** lights, int depth){
+  //set our vectors up
   double* curcolor = zvec();
   double* reflectColor = zvec();
   double* refractColor = zvec();
+
   double best_t = INFINITY;
   Object *best_obj = NULL;
   //Loop through objects and check for collisions with each
@@ -299,10 +297,37 @@ double* trace(double* Ro, double* Rd, Object** objects, Object** lights, int dep
   if(best_obj->kind == 1)	N = sub(Ron, best_obj->sphere.position);
   else if(best_obj->kind == 2)N = best_obj->plane.normal; // plane
   normalize(N);
-
-  if(dot(Rd, N) > 0) {
+  //determine if we are inside or outside the object
+  if(dot(N, Rd) > 0) {
     N = sub(zvec(), N);
     inside = 1;
+  }
+
+  double refr;
+  double refl;
+  //get the refraction value of the object
+  if(best_obj->kind == 1)	refr = best_obj->sphere.refract;
+  else if(best_obj->kind == 2) refr = best_obj->plane.refract;
+  //get the reflection value of the object
+  if(best_obj->kind == 1)	refl = best_obj->sphere.reflect;
+  else if(best_obj->kind == 2) refl = best_obj->plane.reflect;
+
+  //if we have a valid reflection value or refraction value and we are under the max depth
+  if((refr > 0 || refl > 0 ) && depth < MAX_DEPTH){
+    //cos of the angle between rd and the normal
+    double frat = -dot(Rd, N);
+    //set up the fresnel equation
+    double fresnel = mix(pow( 1 - frat, 3), 1, 0.1);
+    //increment the depth
+    depth += 1;
+    //call reflect or refract as necessary
+    if(refl > 0) reflectColor = reflect(Ron, Rd, N, best_obj, objects, lights, depth);
+    if (refr > 0) refractColor = refract(Ron, Rd, N, best_obj, inside, objects, lights, depth);
+
+    //add these values to the current color
+    curcolor[0] += ((fresnel * reflectColor[0]) + (refractColor[0] * (1 - fresnel) * refr)) * difcol[0];
+    curcolor[1] += ((fresnel * reflectColor[1]) + (refractColor[1] * (1 - fresnel) * refr)) * difcol[1];
+    curcolor[2] += ((fresnel * reflectColor[2]) + (refractColor[2] * (1 - fresnel) * refr)) * difcol[2];
   }
 
   //loop through each of the lght objects
@@ -367,30 +392,7 @@ double* trace(double* Ro, double* Rd, Object** objects, Object** lights, int dep
 
       }
     }
-
-    double refr;
-    double refl;
-
-    if(best_obj->kind == 1)	refr = best_obj->sphere.refract;
-    else if(best_obj->kind == 2) refr = best_obj->plane.refract;
-
-    if(best_obj->kind == 1)	refl = best_obj->sphere.reflect;
-    else if(best_obj->kind == 2) refl = best_obj->plane.reflect;
-
-    if((refr > 0 || refl > 0 ) && depth < MAX_DEPTH){
-
-      double frat = -dot(Rd, N);
-      double fresnel = mix(pow(1 - frat, 3), 1, 0.1);
-
-      printf("depth %d\n", depth);
-      depth += 1;
-      if(refl > 0) reflectColor = reflect(Ron, Rd, best_obj, objects, lights, depth);
-      if (refr > 0) refractColor = refract(Ron, Rd, best_obj, inside, objects, lights, depth);
-
-      curcolor[0] += ((fresnel * reflectColor[0]) + (refractColor[0] * (1 - fresnel) * refr)) * difcol[0];
-      curcolor[1] += ((fresnel * reflectColor[1]) + (refractColor[1] * (1 - fresnel) * refr)) * difcol[1];
-      curcolor[2] += ((fresnel * reflectColor[2]) + (refractColor[2] * (1 - fresnel) * refr)) * difcol[2];
-    }
+    //make sure to clamp our colors
     curcolor[0] = clamp(curcolor[0]);
     curcolor[1] = clamp(curcolor[1]);
     curcolor[2] = clamp(curcolor[2]);
@@ -513,6 +515,7 @@ double* trace(double* Ro, double* Rd, Object** objects, Object** lights, int dep
       (void) normalize(Rd);
 
 
+      //get the color from the trace method
       curcolor = trace(Ro, Rd, objects, lights, 0);
 
       int curPix = (height - y) * width + x;
