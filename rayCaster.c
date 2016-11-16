@@ -15,7 +15,7 @@ Ray casting and lighting model
  #include <math.h>
  #include "parser.h"
 
- #define MAX_DEPTH 7
+ #define MAX_DEPTH 4
 
  double* trace(double* Ro, double* Rd, Object** objects, Object** lights, int depth);
 
@@ -117,6 +117,11 @@ static inline double* scale(double t, double* v){
    return normalize(sub(v1, v2));
  }
 
+ static inline double mix(double a, double b, double mix)
+{
+    return b * mix + a * (1 - mix);
+}
+
 //Calculate the radial attenuation in our lighting model
  double frad(double* rad, double d){
 
@@ -193,7 +198,7 @@ double* reflect(double* Ron, double* Rd, Object* best_obj, Object** objects, Obj
   if(best_obj->kind == 1)	N = sub(Ron, best_obj->sphere.position);
   else if(best_obj->kind == 2) N = best_obj->plane.normal;
   normalize(N);
-  R = add(scale(2 * -dot(Rd,N), N), Rd);
+  R = add(scale(-2 * dot(Rd,N), N), Rd);
   normalize(R);
   if(best_obj->kind == 1) return scale(best_obj->sphere.reflect, trace(Ron, R, objects, lights, depth));
   if(best_obj->kind == 2) {
@@ -201,10 +206,46 @@ double* reflect(double* Ron, double* Rd, Object* best_obj, Object** objects, Obj
   }
 }
 
+double* refract(double* Ron, double* Rd, Object* best_obj, Object** objects, Object** lights, int depth){
+  double* N;
+  double R;
+  double n;
+  int in = 0;
+
+  printf("Refract\n");
+  if(best_obj->kind == 1)	N = sub(Ron, best_obj->sphere.position);
+  else if(best_obj->kind == 2) N = best_obj->plane.normal;
+
+  normalize(N);
+
+  if(dot(Rd, N) > 0){
+    N = sub(zvec(), N);
+    in = 1;
+  }
+
+  if(best_obj->kind == 1)	n = 1/best_obj->sphere.ior;
+  else if(best_obj->kind == 2) n = 1/best_obj->plane.ior;
+
+  R = -dot(Rd,N);
+
+  double c = sqrt( 1 - pow(n,2) * (1 - pow(R,2)));
+
+  double* ref = add(scale(n, Rd), scale((n * R - c), N));
+  normalize(ref);
+  if(best_obj->kind == 1) return trace(sub(Ron, N), ref, objects, lights, depth);
+  if(best_obj->kind == 2) {
+    return trace(Ron, ref, objects, lights, depth);
+  }
+}
+
+
+
 
 double* trace(double* Ro, double* Rd, Object** objects, Object** lights, int depth){
 
-  double* curcolor = malloc(sizeof(double)*3);
+  double* curcolor = zvec();
+  double* reflectColor = zvec();
+  double* refractColor = zvec();
   double best_t = INFINITY;
   Object *best_obj = NULL;
   //Loop through objects and check for collisions with each
@@ -235,10 +276,6 @@ double* trace(double* Ro, double* Rd, Object** objects, Object** lights, int dep
     }
   }
 
-  //set the "ambient light"
-  curcolor[0] = 0;
-  curcolor[1] = 0;
-  curcolor[2] = 0;
 
   //If we didnt get a collision, go to the next loop and color the pixel black
   if (best_obj == NULL) {
@@ -257,7 +294,11 @@ double* trace(double* Ro, double* Rd, Object** objects, Object** lights, int dep
 
   //the point on the object where we got a collision
   double* Ron = add(scale(best_t, Rd), Ro);
-
+  double* N;
+  //get the normal of the object
+  if(best_obj->kind == 1)	N = sub(Ron, best_obj->sphere.position);
+  else if(best_obj->kind == 2)N = best_obj->plane.normal; // plane
+  normalize(N);
 
   //loop through each of the lght objects
   for (int j=0; lights[j] != NULL; j+=1) {
@@ -298,17 +339,11 @@ double* trace(double* Ro, double* Rd, Object** objects, Object** lights, int dep
       }
       //only do this if there is no shadow
       if (closest_shadow_object == 0) {
-        double* N;
         double* L;
         double* R;
         double* V;
         double* Kd;
         double* Ks;
-        //get the normal of the object
-        if(best_obj->kind == 1)	N = sub(Ron, best_obj->sphere.position);
-        else if(best_obj->kind == 2)N = best_obj->plane.normal; // plane
-        //normalize
-        normalize(N);
 
         L = Rdn; // light_position - Ron;
 
@@ -327,14 +362,33 @@ double* trace(double* Ro, double* Rd, Object** objects, Object** lights, int dep
 
       }
     }
+    int inside = 0;
     if(depth < MAX_DEPTH){
+      if(dot(Rd, N) < 0) {
+        N = sub(zvec(), N);
+        inside = 1;
+      }
+      double frat = -dot(Rd, N);
+      double fresnel = mix(pow(1 - frat, 5), 1, 1);
+
+      double refr;
+      double refl;
+
+
+      if(best_obj->kind == 1)	refr = best_obj->sphere.refract;
+      else if(best_obj->kind == 2) refr = best_obj->plane.refract;
+
+      if(best_obj->kind == 1)	refl = best_obj->sphere.reflect;
+      else if(best_obj->kind == 2) refl = best_obj->plane.reflect;
+
       printf("depth %d\n", depth);
       depth += 1;
-      double* reflectColor = reflect(Ron, Rd, best_obj, objects, lights, depth);
+      if(refl > 0) reflectColor = reflect(Ron, Rd, best_obj, objects, lights, depth);
+      if (refr > 0) refractColor = refract(Ron, Rd, best_obj, objects, lights, depth);
 
-      curcolor[0] += reflectColor[0];
-      curcolor[1] += reflectColor[1];
-      curcolor[2] += reflectColor[2];
+      curcolor[0] += ((fresnel * reflectColor[0]) + (refractColor[0] * (1 - fresnel) * refr)) * curcolor[0];
+      curcolor[1] += ((fresnel * reflectColor[1]) + (refractColor[1] * (1 - fresnel) * refr)) * curcolor[1];
+      curcolor[2] += ((fresnel * reflectColor[2]) + (refractColor[2] * (1 - fresnel) * refr)) * curcolor[2];
     }
     curcolor[0] = clamp(curcolor[0]);
     curcolor[1] = clamp(curcolor[1]);
