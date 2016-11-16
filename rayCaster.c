@@ -15,7 +15,7 @@ Ray casting and lighting model
  #include <math.h>
  #include "parser.h"
 
- #define MAX_DEPTH 4
+ #define MAX_DEPTH 7
 
  double* trace(double* Ro, double* Rd, Object** objects, Object** lights, int depth);
 
@@ -206,11 +206,10 @@ double* reflect(double* Ron, double* Rd, Object* best_obj, Object** objects, Obj
   }
 }
 
-double* refract(double* Ron, double* Rd, Object* best_obj, Object** objects, Object** lights, int depth){
+double* refract(double* Ron, double* Rd, Object* best_obj, int inside, Object** objects, Object** lights, int depth){
   double* N;
   double R;
   double n;
-  int in = 0;
 
   printf("Refract\n");
   if(best_obj->kind == 1)	N = sub(Ron, best_obj->sphere.position);
@@ -218,21 +217,22 @@ double* refract(double* Ron, double* Rd, Object* best_obj, Object** objects, Obj
 
   normalize(N);
 
-  if(dot(Rd, N) > 0){
-    N = sub(zvec(), N);
-    in = 1;
+  if(inside)
+  {
+    if(best_obj->kind == 1)	n = 1/best_obj->sphere.ior;
+    else if(best_obj->kind == 2) n = 1/best_obj->plane.ior;
   }
-
-  if(best_obj->kind == 1)	n = 1/best_obj->sphere.ior;
-  else if(best_obj->kind == 2) n = 1/best_obj->plane.ior;
-
+  else{
+    if(best_obj->kind == 1)	n = best_obj->sphere.ior;
+    else if(best_obj->kind == 2) n = best_obj->plane.ior;
+  }
   R = -dot(Rd,N);
 
   double c = sqrt( 1 - pow(n,2) * (1 - pow(R,2)));
 
   double* ref = add(scale(n, Rd), scale((n * R - c), N));
   normalize(ref);
-  if(best_obj->kind == 1) return trace(sub(Ron, N), ref, objects, lights, depth);
+  if(best_obj->kind == 1) return trace(Ron, ref, objects, lights, depth);
   if(best_obj->kind == 2) {
     return trace(Ron, ref, objects, lights, depth);
   }
@@ -242,7 +242,6 @@ double* refract(double* Ron, double* Rd, Object* best_obj, Object** objects, Obj
 
 
 double* trace(double* Ro, double* Rd, Object** objects, Object** lights, int depth){
-
   double* curcolor = zvec();
   double* reflectColor = zvec();
   double* refractColor = zvec();
@@ -295,10 +294,16 @@ double* trace(double* Ro, double* Rd, Object** objects, Object** lights, int dep
   //the point on the object where we got a collision
   double* Ron = add(scale(best_t, Rd), Ro);
   double* N;
+  int inside = 0;
   //get the normal of the object
   if(best_obj->kind == 1)	N = sub(Ron, best_obj->sphere.position);
   else if(best_obj->kind == 2)N = best_obj->plane.normal; // plane
   normalize(N);
+
+  if(dot(Rd, N) > 0) {
+    N = sub(zvec(), N);
+    inside = 1;
+  }
 
   //loop through each of the lght objects
   for (int j=0; lights[j] != NULL; j+=1) {
@@ -362,33 +367,29 @@ double* trace(double* Ro, double* Rd, Object** objects, Object** lights, int dep
 
       }
     }
-    int inside = 0;
-    if(depth < MAX_DEPTH){
-      if(dot(Rd, N) < 0) {
-        N = sub(zvec(), N);
-        inside = 1;
-      }
+
+    double refr;
+    double refl;
+
+    if(best_obj->kind == 1)	refr = best_obj->sphere.refract;
+    else if(best_obj->kind == 2) refr = best_obj->plane.refract;
+
+    if(best_obj->kind == 1)	refl = best_obj->sphere.reflect;
+    else if(best_obj->kind == 2) refl = best_obj->plane.reflect;
+
+    if((refr > 0 || refl > 0 ) && depth < MAX_DEPTH){
+
       double frat = -dot(Rd, N);
-      double fresnel = mix(pow(1 - frat, 5), 1, 1);
-
-      double refr;
-      double refl;
-
-
-      if(best_obj->kind == 1)	refr = best_obj->sphere.refract;
-      else if(best_obj->kind == 2) refr = best_obj->plane.refract;
-
-      if(best_obj->kind == 1)	refl = best_obj->sphere.reflect;
-      else if(best_obj->kind == 2) refl = best_obj->plane.reflect;
+      double fresnel = mix(pow(1 - frat, 3), 1, 0.1);
 
       printf("depth %d\n", depth);
       depth += 1;
       if(refl > 0) reflectColor = reflect(Ron, Rd, best_obj, objects, lights, depth);
-      if (refr > 0) refractColor = refract(Ron, Rd, best_obj, objects, lights, depth);
+      if (refr > 0) refractColor = refract(Ron, Rd, best_obj, inside, objects, lights, depth);
 
-      curcolor[0] += ((fresnel * reflectColor[0]) + (refractColor[0] * (1 - fresnel) * refr)) * curcolor[0];
-      curcolor[1] += ((fresnel * reflectColor[1]) + (refractColor[1] * (1 - fresnel) * refr)) * curcolor[1];
-      curcolor[2] += ((fresnel * reflectColor[2]) + (refractColor[2] * (1 - fresnel) * refr)) * curcolor[2];
+      curcolor[0] += ((fresnel * reflectColor[0]) + (refractColor[0] * (1 - fresnel) * refr)) * difcol[0];
+      curcolor[1] += ((fresnel * reflectColor[1]) + (refractColor[1] * (1 - fresnel) * refr)) * difcol[1];
+      curcolor[2] += ((fresnel * reflectColor[2]) + (refractColor[2] * (1 - fresnel) * refr)) * difcol[2];
     }
     curcolor[0] = clamp(curcolor[0]);
     curcolor[1] = clamp(curcolor[1]);

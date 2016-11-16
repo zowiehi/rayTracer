@@ -8,25 +8,27 @@
   "type": "sphere",
   "radius": 2.0,
   "reflectivity": 1,
-  "refractivity": 0.2,
-  "ior": 1.33,
-  "diffuse_color": [1, 0.5, 0.2],
-  "specular_color": [1, 1, 1],
+  "refractivity": 0.1,
+  "ior": 1,
+  "diffuse_color": [0.8, 0.5, 0.2],
+  "specular_color": [0.8, 0.8, 0.8],
   "position": [0, 1, 13]
 },
 {
   "type": "sphere",
   "radius": 1.0,
   "diffuse_color": [0.2, 0.2, 0.8],
-  "specular_color": [1, 1, 1],
+  "specular_color": [0.1, 0.1, 0.1],
   "position": [-3, 2.8, 10]
 },
 {
   "type": "sphere",
-  "radius": 0.7,
-  "diffuse_color": [0.8, 0.2, 0.8],
+  "radius": 0.4,
+  "reflectivity": 1,
+
+  "diffuse_color": [0.6, 0.5, 0.6],
   "specular_color": [1, 1, 1],
-  "position": [2.5, 0, 8]
+  "position": [0, -0.5, 8]
 },
 {
   "type": "plane",
@@ -37,21 +39,10 @@
 
 {
   "type": "light",
-  "color": [6, 5, 6],
+  "color": [4, 4, 4],
   "radial-a2": 0.125,
   "radial-a1": 0.125,
   "radial-a0": 0.125,
-  "position": [0, 2, 6]
-},
-{
-  "type": "light",
-  "color": [2, 2, 2],
-  "direction": [1, 0.2, -0.2],
-  "angular-a0": 1,
-  "theta": 60,
-  "radial-a2": 0.125,
-  "radial-a1": 0.125,
-  "radial-a0": 0.125,
-  "position": [5, 4, 10]
+  "position": [0, 4, 6]
 }
 ]
